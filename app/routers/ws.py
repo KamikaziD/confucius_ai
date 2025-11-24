@@ -106,6 +106,8 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
             # else: handle other incoming messages if needed
     except WebSocketDisconnect:
         manager.disconnect(client_id)
+        logger.info(f"Client {client_id} disconnected gracefully.")
+        return # Ensure the coroutine exits
     except Exception as e:
         logger.error(
             f"WebSocket error for client {client_id}: {e}", exc_info=True)
