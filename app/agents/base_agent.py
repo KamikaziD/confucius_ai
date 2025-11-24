@@ -35,4 +35,4 @@ class BaseAgent(ABC):
                 "timestamp": datetime.now().isoformat()
             }
             # Use publish_sync as this method might be called from sync contexts
-            redis_service.publish_sync(f"agent_results:{self.client_id}", json.dumps(activity_message))
+            redis_service.publish_sync(f"agent_activity:{self.client_id}", json.dumps(activity_message))

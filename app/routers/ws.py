@@ -21,15 +21,16 @@ class ConnectionManager:
     def __init__(self, redis_service_instance):
         self.active_connections: Dict[str, WebSocket] = {}
         self.redis_service = redis_service_instance
-        self.pubsub = None # Initialize pubsub in startup method
+        self.pubsub = None  # Initialize pubsub in startup method
 
     async def startup(self):
         """Initialize pubsub and start the global listener"""
         if not self.pubsub:
             self.pubsub = self.redis_service.redis.pubsub()
-            await self.pubsub.psubscribe("agent_results:*") # Subscribe here
+            await self.pubsub.psubscribe("agent_results:*", "agent_activity:*")  # Subscribe to both
             asyncio.create_task(self.run_pubsub_listener())
-            logger.info("ConnectionManager startup: Pub/Sub initialized and listener started.")
+            logger.info(
+                "ConnectionManager startup: Pub/Sub initialized and listener started, subscribed to 'agent_results:*' and 'agent_activity:*'.")
 
     async def connect(self, websocket: WebSocket, client_id: str):
         await websocket.accept()
@@ -55,7 +56,8 @@ class ConnectionManager:
 
     async def run_pubsub_listener(self):
         if not self.pubsub:
-            logger.error("run_pubsub_listener called before pubsub was initialized.")
+            logger.error(
+                "run_pubsub_listener called before pubsub was initialized.")
             return
         # Subscribe to all agent_results channels
         # await self.pubsub.psubscribe("agent_results:*") # Subscribed in startup
@@ -68,10 +70,12 @@ class ConnectionManager:
                     channel = message['channel'].decode('utf-8')
                     data = message['data'].decode('utf-8')
 
-                    # Extract client_id from channel name (e.g., "agent_results:client_id_uuid")
+                    # Extract client_id from channel name (e.g., "agent_results:client_id_uuid" or "agent_activity:client_id_uuid")
                     parts = channel.split(':')
-                    if len(parts) == 2 and parts[0] == 'agent_results':
+                    if len(parts) == 2 and (parts[0] == 'agent_results' or parts[0] == 'agent_activity'):
                         client_id = parts[1]
+                        print(
+                            f"Dispatching Redis message from channel {channel} to client {client_id}")
                         logger.debug(
                             f"Dispatching Redis message from channel {channel} to client {client_id}")
                         await self.send_personal_message(data, client_id)
