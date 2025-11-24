@@ -2,7 +2,7 @@ import httpx
 from fastapi import UploadFile
 from typing import List, Dict, Any, Optional
 import magic
-import PyPDF2
+import pypdf
 from docx import Document
 import openpyxl
 import io
@@ -61,7 +61,7 @@ class FileService:
     def _read_pdf(self, content: bytes) -> str:
         """Read the content of a PDF file."""
         try:
-            pdf_reader = PyPDF2.PdfReader(io.BytesIO(content))
+            pdf_reader = pypdf.PdfReader(io.BytesIO(content))
             text = ""
             for page in pdf_reader.pages:
                 text += page.extract_text()
