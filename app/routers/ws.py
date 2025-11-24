@@ -100,10 +100,10 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
     await manager.connect(websocket, client_id)
     try:
         while True:
-            # Keep connection alive, or handle incoming messages if needed
-            # For now, we primarily send messages from backend to frontend
-            # This will block until a message is received or connection closed
-            await websocket.receive_text()
+            message = await websocket.receive() # Receive any message type
+            if message["type"] == "websocket.pong":
+                await manager.receive_pong(client_id)
+            # else: handle other incoming messages if needed
     except WebSocketDisconnect:
         manager.disconnect(client_id)
     except Exception as e:
