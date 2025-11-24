@@ -75,7 +75,7 @@ async def execute_agents(
         if final_context:
             exec_context["text"] = final_context
 
-        result = await master.execute(query, exec_context if exec_context else None)
+        result = await master.execute(query, exec_context)
 
         # Save to history
         session_id = str(uuid.uuid4())
