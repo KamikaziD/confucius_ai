@@ -208,8 +208,4 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
-.GEMINI.md
-.code_segments1.md
-.code_segments2.md
-.code_segments3.md
-.checklist.md
+GEMINI.md
