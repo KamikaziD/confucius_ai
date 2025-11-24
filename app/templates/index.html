@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Agent AI System</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div>
+                <h1>Multi-Agent AI System</h1>
+                <p class="subtitle">Autonomous agents powered by Ollama</p>
+            </div>
+            <div class="header-buttons">
+                <button id="settingsBtn" class="icon-btn" title="Settings">⚙️</button>
+                <button id="historyBtn" class="icon-btn" title="History">📜</button>
+                <button id="promptsBtn" class="icon-btn" title="Prompts">✏️</button>
+            </div>
+        </header>
+
+        <!-- Connection Status -->
+        <div id="connectionBanner" class="banner hidden">
+            <span id="connectionText"></span>
+        </div>
+
+        <!-- Agent Cards -->
+        <div class="agent-grid">
+            <div class="agent-card" data-agent="OCR Agent">
+                <div class="agent-icon bg-blue">📄</div>
+                <h3>OCR Agent</h3>
+                <p>Text extraction</p>
+            </div>
+            <div class="agent-card" data-agent="Info Agent">
+                <div class="agent-icon bg-green">🔍</div>
+                <h3>Info Agent</h3>
+                <p>Web search</p>
+            </div>
+            <div class="agent-card" data-agent="RAG Agent">
+                <div class="agent-icon bg-purple">🗄️</div>
+                <h3>RAG Agent</h3>
+                <p>Knowledge base</p>
+            </div>
+            <div class="agent-card" data-agent="Master Agent">
+                <div class="agent-icon bg-orange">🧠</div>
+                <h3>Master Agent</h3>
+                <p>Orchestrator</p>
+            </div>
+        </div>
+
+        <!-- Input Section -->
+        <div class="input-section">
+            <label>Enter your request:</label>
+            <div class="input-group">
+                <input type="text" id="queryInput" placeholder="e.g., Extract text from this invoice document and search for pricing information">
+                <button id="executeBtn" class="btn-primary">
+                    <span id="executeText">Execute</span>
+                    <span id="loadingSpinner" class="hidden">⏳</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="content-grid">
+            <!-- Execution Plan -->
+            <div class="panel">
+                <h2>Execution Plan</h2>
+                <div id="executionPlan" class="panel-content">
+                    <p class="empty-state">Plan will appear here</p>
+                </div>
+            </div>
+
+            <!-- Logs -->
+            <div class="panel">
+                <h2>Activity Logs</h2>
+                <div id="activityLogs" class="panel-content logs">
+                    <p class="empty-state">No activity yet</p>
+                </div>
+            </div>
+
+           
+        </div>
+        <div class="content-grid">
+
+            <!-- Results -->
+            <div class="panel-results">
+                <h2>Results</h2>
+                <div id="results" class="panel-content results">
+                    <p class="empty-state">Results will appear here</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Modal -->
+        <div id="settingsModal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Settings</h2>
+                    <button class="close-btn">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="settings-section">
+                        <h3>Connection Status</h3>
+                        <div id="connectionStatus"></div>
+                    </div>
+
+                    <div class="settings-section">
+                        <h3>Agent Models</h3>
+                        <div id="modelSettings"></div>
+                    </div>
+
+                    <div class="settings-section">
+                        <h3>Collections</h3>
+                        <div id="collectionSettings"></div>
+                        <button id="uploadBtn" class="btn-secondary">Upload Documents</button>
+                        <input type="file" id="fileInput" multiple accept=".txt,.pdf" class="hidden">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- History Modal -->
+        <div id="historyModal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Conversation History</h2>
+                    <button class="close-btn">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div id="historyList"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Prompts Modal -->
+        <div id="promptsModal" class="modal hidden">
+            <div class="modal-content large">
+                <div class="modal-header">
+                    <h2>System Prompts</h2>
+                    <button class="close-btn">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div id="promptsList"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
