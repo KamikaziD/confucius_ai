@@ -1,10 +1,12 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, File, UploadFile, Form
 from app.agents.master_agent import MasterAgent
 from app.models.agent import AgentRequest
 from app.services.redis_service import redis_service
-from typing import Dict, Any
+from app.services.file_service import file_service
+from typing import Dict, Any, List, Optional
 import uuid
 from datetime import datetime
+import json
 
 router = APIRouter()
 
@@ -18,9 +20,17 @@ DEFAULT_PROMPTS = {
 
 
 @router.post("/execute")
-async def execute_agents(request: AgentRequest):
+async def execute_agents(
+    query: str = Form(...),
+    context: Optional[str] = Form(None),
+    collections_str: Optional[str] = Form("[]"), # Default to empty JSON array string
+    urls_str: Optional[str] = Form("[]"),       # Default to empty JSON array string
+    files: Optional[List[UploadFile]] = File(None),
+):
     """Execute the multi-agent system"""
     try:
+        collections = json.loads(collections_str)
+        urls = json.loads(urls_str)
         # Get agent models from Redis or use defaults
         agent_models_data = await redis_service.get("agent_models")
         agent_models = agent_models_data or {
@@ -44,20 +54,35 @@ async def execute_agents(request: AgentRequest):
         # Create master agent
         master = MasterAgent(agent_models, system_prompts)
 
-        # Execute
-        context = {}
-        if request.collections:
-            context["collections"] = request.collections
-        if request.context:
-            context["text"] = request.context
+        # Process files and URLs
+        file_contents = []
+        if urls:
+            url_files = await file_service.get_files_from_urls(urls)
+            file_contents.extend([file_service.read_file_content(f) for f in url_files])
+        if files:
+            uploaded_files = await file_service.get_files_from_uploads(files)
+            file_contents.extend([file_service.read_file_content(f) for f in uploaded_files])
 
-        result = await master.execute(request.query, context if context else None)
+        # Combine context
+        final_context = context or ""
+        if file_contents:
+            final_context += "\n\n" + "\n\n".join(file_contents)
+
+        # Execute
+        exec_context = {}
+        if collections:
+            exec_context["collections"] = collections
+        if final_context:
+            exec_context["text"] = final_context
+
+        result = await master.execute(query, exec_context if exec_context else None)
 
         # Save to history
         session_id = str(uuid.uuid4())
         session = {
             "id": session_id,
-            "input": request.query,
+            "input": query,
+            "context": final_context,
             "result": result["final_result"],
             "plan": result["plan"],
             "status": result["status"],
