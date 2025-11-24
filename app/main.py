@@ -13,6 +13,7 @@ async def lifespan(app: FastAPI):
     # Startup
     await redis_service.connect() # Connect async client
     redis_service.connect_sync() # Connect sync client
+    await ws.manager.startup() # Initialize WebSocket manager's pubsub listener
     yield
     # Shutdown
     await redis_service.disconnect() # Disconnect async client
