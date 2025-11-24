@@ -25,7 +25,7 @@ async def execute_agents(
     context: Optional[str] = Form(None),
     collections_str: Optional[str] = Form("[]"), # Default to empty JSON array string
     urls_str: Optional[str] = Form("[]"),       # Default to empty JSON array string
-    files: Optional[List[UploadFile]] = File(None),
+    files: List[UploadFile] = File([]),
 ):
     """Execute the multi-agent system"""
     try:
