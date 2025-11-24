@@ -486,3 +486,29 @@ body {
         max-height: 90vh;
     }
 }
+
+.selected-files-display {
+    margin-top: 0.75rem;
+    padding: 0.75rem;
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 0.5rem;
+    min-height: 40px; /* Ensure it's visible even when empty */
+    color: #cbd5e1;
+    font-size: 0.875rem;
+}
+
+.selected-files-display ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.selected-files-display ul li {
+    padding: 0.25rem 0;
+    border-bottom: 1px solid #1e293b;
+}
+
+.selected-files-display ul li:last-child {
+    border-bottom: none;
+}

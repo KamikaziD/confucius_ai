@@ -55,11 +55,14 @@
             <label>Enter your request:</label>
             <div class="input-group">
                 <input type="text" id="queryInput" placeholder="e.g., Extract text from this invoice document and search for pricing information">
+                <input type="file" id="mainFileInput" multiple accept=".txt,.pdf,.docx,.xlsx" class="hidden">
+                <button id="mainUploadBtn" class="btn-secondary icon-btn" title="Upload Files">📁</button>
                 <button id="executeBtn" class="btn-primary">
                     <span id="executeText">Execute</span>
                     <span id="loadingSpinner" class="hidden">⏳</span>
                 </button>
             </div>
+            <div id="selectedFilesDisplay" class="selected-files-display"></div>
         </div>
 
         <!-- Main Content -->

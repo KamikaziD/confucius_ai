@@ -42,25 +42,73 @@ function setupEventListeners() {
         document.getElementById('fileInput').click();
     });
     
-    document.getElementById('fileInput').addEventListener('change', uploadDocuments);
+    // Upload button in main input
+    document.getElementById('mainUploadBtn').addEventListener('click', () => {
+        document.getElementById('mainFileInput').click();
+    });
+    
+    document.getElementById('mainFileInput').addEventListener('change', displayMainSelectedFiles);
+}
+
+// Helper to display selected files in the main input section
+function displayMainSelectedFiles() {
+    const fileInput = document.getElementById('mainFileInput');
+    const displayDiv = document.getElementById('selectedFilesDisplay');
+    displayDiv.innerHTML = ''; // Clear previous selections
+    
+    if (fileInput.files.length > 0) {
+        const ul = document.createElement('ul');
+        for (let i = 0; i < fileInput.files.length; i++) {
+            const li = document.createElement('li');
+            li.textContent = fileInput.files[i].name;
+            ul.appendChild(li);
+        }
+        displayDiv.appendChild(ul);
+    }
+}
+
+// Regex to extract URLs
+function extractUrls(text) {
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    return text.match(urlRegex) || [];
 }
 
 // API Calls
 async function executeAgents() {
-    const query = document.getElementById('queryInput').value.trim();
-    if (!query) return;
+    const queryInput = document.getElementById('queryInput');
+    let query = queryInput.value.trim();
+    
+    const mainFileInput = document.getElementById('mainFileInput');
+    const files = mainFileInput.files;
+    
+    const urls = extractUrls(query);
+    
+    // Remove URLs from the query text
+    urls.forEach(url => {
+        query = query.replace(url, '').trim();
+    });
+
+    if (!query && files.length === 0 && urls.length === 0) {
+        alert('Please enter a query, upload files, or include URLs.');
+        return;
+    }
     
     setLoading(true);
     clearResults();
     
+    const formData = new FormData();
+    formData.append('query', query);
+    formData.append('collections', JSON.stringify(selectedCollections));
+    formData.append('urls', JSON.stringify(urls));
+
+    for (let i = 0; i < files.length; i++) {
+        formData.append('files', files[i]);
+    }
+    
     try {
         const response = await fetch('/api/agents/execute', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                query,
-                collections: selectedCollections
-            })
+            body: formData
         });
         
         const data = await response.json();
@@ -73,6 +121,11 @@ async function executeAgents() {
         
         // Add log
         addLog('Master Agent', `Execution completed in ${data.duration.toFixed(2)}s`, false);
+        
+        // Clear inputs after successful execution
+        queryInput.value = '';
+        mainFileInput.value = '';
+        displayMainSelectedFiles(); // Clear displayed files
         
     } catch (error) {
         addLog('System', `Error: ${error.message}`, true);
