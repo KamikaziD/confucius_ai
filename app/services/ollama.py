@@ -13,8 +13,8 @@ class OllamaService:
         model: str,
         stream: bool = False
     ) -> str:
-        """Generate completion from Ollama"""
-                    async with httpx.AsyncClient(timeout=300.0) as client:            response = await client.post(
+                """Generate completion from Ollama"""
+                async with httpx.AsyncClient(timeout=settings.OLLAMA_GENERATE_TIMEOUT) as client:            response = await client.post(
                 f"{self.base_url}/api/generate",
                 json={
                     "model": model,
@@ -33,7 +33,7 @@ class OllamaService:
     
     async def generate_embedding(self, text: str, model: str) -> List[float]:
         """Generate embedding from Ollama"""
-        async with httpx.AsyncClient(timeout=120.0) as client:
+        async with httpx.AsyncClient(timeout=settings.OLLAMA_EMBEDDING_TIMEOUT) as client:
             response = await client.post(
                 f"{self.base_url}/api/embeddings",
                 json={
