@@ -5,7 +5,8 @@ from app.models.agent import ExecutionPlan, PlanStep, ExecutionMode
 from typing import Dict, Any, List, Optional
 import asyncio
 import time
-from datetime import datetime # Import datetime
+from datetime import datetime
+from app.services.redis_service import redis_service # Import redis_service # Import datetime
 
 class MasterAgent:
     def __init__(
