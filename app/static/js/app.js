@@ -379,6 +379,11 @@ async function toggleCollection(collection, checked) {
 }
 
 function displayExecutionPlan(plan) {
+    const executionPlanDiv = document.getElementById('executionPlan');
+    if (!plan) {
+        executionPlanDiv.innerHTML = '<p class="empty-state">Execution plan not available.</p>';
+        return;
+    }
     const planHtml = `
         <div style="margin-bottom: 1rem;">
             <strong>Agents:</strong> ${plan.agents.join(', ')}
@@ -396,7 +401,7 @@ function displayExecutionPlan(plan) {
             `).join('')}
         </div>
     `;
-    document.getElementById('executionPlan').innerHTML = planHtml;
+    executionPlanDiv.innerHTML = planHtml;
 }
 
 function addLog(agent, message, isError = false) {
