@@ -10,10 +10,10 @@ class OCRAgent(BaseAgent):
     
     async def execute(self, query: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Execute OCR analysis"""
-        prompt = f"""Analyze the following text and extract key information. 
-Identify the document type and extract structured data.
-
-Text: "{query}"
+        text_to_analyze = context.get("text", query)
+        
+        prompt = f"""Analyze the following text and extract key information based on the user's query: "{query}".
+Document Text: "{text_to_analyze}"
 
 Provide your analysis in the following format:
 Document Type: [type]
@@ -28,10 +28,10 @@ Key Information: [bullet points of extracted data]"""
         )
         
         return {
-            "text": query,
+            "text": text_to_analyze,
             "analysis": result,
             "confidence": 0.95,
-            "detected_type": self._detect_document_type(query),
+            "detected_type": self._detect_document_type(text_to_analyze),
             "model": self.model,
             "execution_time": duration
         }
