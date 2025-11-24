@@ -10,27 +10,31 @@ class MasterAgent:
     def __init__(
         self,
         agent_models: Dict[str, str],
-        system_prompts: Dict[str, str]
+        system_prompts: Dict[str, str],
+        client_id: Optional[str] = None # Add client_id
     ):
-        self.ocr_agent = OCRAgent(agent_models["ocr"], system_prompts["ocr"])
-        self.info_agent = InfoAgent(agent_models["info"], system_prompts["info"])
+        self.ocr_agent = OCRAgent(agent_models["ocr"], system_prompts["ocr"], client_id=client_id)
+        self.info_agent = InfoAgent(agent_models["info"], system_prompts["info"], client_id=client_id)
         self.rag_agent = RAGAgent(
             agent_models["rag"],
             agent_models["embedding"],
-            system_prompts["rag"]
+            system_prompts["rag"],
+            client_id=client_id # Pass client_id
         )
         self.agent_models = agent_models
+        self.client_id = client_id # Store client_id
     
-    def analyze_request(self, query: str) -> Dict[str, Any]:
+    def analyze_request(self, query: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Analyze user request to determine required agents"""
         query_lower = query.lower()
-        
-        needs_ocr = any(kw in query_lower for kw in ["document", "text", "extract", "read", "scan"])
+        context_text = context.get("text", "").lower() if context else ""
+
+        needs_ocr = "text" in context_text or any(kw in query_lower for kw in ["document", "text", "extract", "read", "scan"])
         needs_info = any(kw in query_lower for kw in ["search", "find", "information", "lookup", "research"])
         needs_rag = True  # Always use RAG for context
-        
+
         complexity = sum([needs_ocr, needs_info, needs_rag])
-        
+
         return {
             "needs_ocr": needs_ocr,
             "needs_info": needs_info,
@@ -99,6 +103,7 @@ class MasterAgent:
         if plan.execution_mode == ExecutionMode.PARALLEL and len(independent_steps) > 1:
             tasks = []
             for step in independent_steps:
+                self.report_activity(f"Starting parallel execution for {step.agent}: {step.action}")
                 if step.agent == "OCR Agent":
                     tasks.append(("OCR Agent", self.ocr_agent.execute(query, context)))
                 elif step.agent == "Info Agent":
@@ -107,21 +112,26 @@ class MasterAgent:
             parallel_results = await asyncio.gather(*[task[1] for task in tasks])
             for (agent_name, _), result in zip(tasks, parallel_results):
                 results[agent_name] = result
+                self.report_activity(f"Completed parallel execution for {agent_name}.")
         else:
             # Sequential execution
             for step in independent_steps:
+                self.report_activity(f"Starting sequential execution for {step.agent}: {step.action}")
                 if step.agent == "OCR Agent":
                     results["OCR Agent"] = await self.ocr_agent.execute(query, context)
                 elif step.agent == "Info Agent":
                     results["Info Agent"] = await self.info_agent.execute(query, context)
+                self.report_activity(f"Completed sequential execution for {step.agent}.")
         
         # Execute dependent agents
         for step in dependent_steps:
+            self.report_activity(f"Starting dependent execution for {step.agent}: {step.action}")
             if step.agent == "RAG Agent":
                 rag_context = context or {}
                 if "OCR Agent" in results:
                     rag_context["text"] = results["OCR Agent"]["text"]
                 results["RAG Agent"] = await self.rag_agent.execute(query, rag_context)
+            self.report_activity(f"Completed dependent execution for {step.agent}.")
         
         return results
     
@@ -132,6 +142,7 @@ class MasterAgent:
         query: str
     ) -> str:
         """Synthesize results from all agents"""
+        self.report_activity("Synthesizing results from all agents.")
         output = "=== MASTER AGENT SYNTHESIS ===\n\n"
         output += f"📋 EXECUTION SUMMARY:\n"
         output += f"- Master Model: {self.agent_models['master']}\n"
@@ -165,6 +176,7 @@ class MasterAgent:
         output += f"💡 CONCLUSION:\n"
         output += f"All {len(plan.steps)} planned steps completed successfully.\n"
         
+        self.report_activity("Synthesis complete.")
         return output
     
     async def execute(
@@ -175,14 +187,20 @@ class MasterAgent:
         """Main execution method"""
         start_time = time.time()
         
+        self.report_activity("Analyzing request...")
         # Analyze request
-        analysis = self.analyze_request(query)
+        analysis = self.analyze_request(query, context)
+        self.report_activity("Request analysis complete.")
         
+        self.report_activity("Creating execution plan...")
         # Create execution plan
         plan = self.create_execution_plan(analysis)
+        self.report_activity("Execution plan created.")
         
+        self.report_activity("Executing plan...")
         # Execute plan
         results = await self.execute_plan(plan, query, context)
+        self.report_activity("Plan execution complete.")
         
         # Synthesize results
         final_result = self.synthesize_results(results, plan, query)
@@ -198,3 +216,16 @@ class MasterAgent:
             "duration": duration,
             "status": "success"
         }
+    
+    # Add report_activity method to MasterAgent as well, inheriting from BaseAgent
+    def report_activity(self, message: str, is_error: bool = False):
+        """Report master agent activity to the client via Redis Pub/Sub"""
+        if self.client_id:
+            activity_message = {
+                "type": "activity_update",
+                "agent": "Master Agent", # Master agent specific
+                "message": message,
+                "is_error": is_error,
+                "timestamp": datetime.now().isoformat()
+            }
+            redis_service.publish_sync(f"agent_results:{self.client_id}", json.dumps(activity_message))

@@ -66,7 +66,9 @@ function connectWebSocket() {
 
     websocket.onmessage = (event) => {
         const message = JSON.parse(event.data);
-        if (message.task_id) {
+        if (message.type === 'activity_update') {
+            addLog(message.agent, message.message, message.is_error);
+        } else if (message.task_id) {
             addLog('System', `Received update for task ${message.task_id}. Status: ${message.status}`, false);
             if (message.status === 'SUCCESS') {
                 const result = message.result;

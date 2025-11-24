@@ -4,8 +4,8 @@ from app.services.ollama import ollama_service
 from typing import Dict, Any, Optional
 
 class OCRAgent(BaseAgent):
-    def __init__(self, model: str, system_prompt: str):
-        super().__init__(AgentType.OCR, model)
+    def __init__(self, model: str, system_prompt: str, client_id: Optional[str] = None):
+        super().__init__(AgentType.OCR, model, client_id=client_id)
         self.system_prompt = system_prompt
     
     async def execute(self, query: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:

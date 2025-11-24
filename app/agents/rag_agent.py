@@ -7,8 +7,8 @@ from app.config import settings
 from typing import Dict, Any, Optional, List
 
 class RAGAgent(BaseAgent):
-    def __init__(self, model: str, embedding_model: str, system_prompt: str):
-        super().__init__(AgentType.RAG, model)
+    def __init__(self, model: str, embedding_model: str, system_prompt: str, client_id: Optional[str] = None):
+        super().__init__(AgentType.RAG, model, client_id=client_id)
         self.embedding_model = embedding_model
         self.system_prompt = system_prompt
     

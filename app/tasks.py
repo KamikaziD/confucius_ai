@@ -54,7 +54,7 @@ def execute_master_agent_task(
             }
 
         # Create master agent
-        master = MasterAgent(agent_models, system_prompts)
+        master = MasterAgent(agent_models, system_prompts, client_id=client_id)
 
         # Process files and URLs
         file_contents = []
