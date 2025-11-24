@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 
 from app.config import settings
 from app.services.redis_service import redis_service
-from app.routers import agents, settings as settings_router, collections, history
+from app.routers import agents, settings as settings_router, collections, history, ws # Import ws router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -40,6 +40,7 @@ app.include_router(agents.router, prefix="/api/agents", tags=["agents"])
 app.include_router(settings_router.router, prefix="/api/settings", tags=["settings"])
 app.include_router(collections.router, prefix="/api/collections", tags=["collections"])
 app.include_router(history.router, prefix="/api/history", tags=["history"])
+app.include_router(ws.router) # Include WebSocket router
 
 @app.get("/")
 async def root(request: Request):

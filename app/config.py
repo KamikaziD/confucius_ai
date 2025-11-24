@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     REDIS_DB: int = 0
     REDIS_PASSWORD: Optional[str] = None
 
+    # Celery
+    CELERY_BROKER_URL: str = "amqp://guest:guest@localhost:5672//"
+    CELERY_RESULT_BACKEND: str = "redis://localhost:6379/0"
+
     # Search
     SEARCH_PROVIDER: str = "duckduckgo"
     SERPER_API_KEY: Optional[str] = None

@@ -12,3 +12,5 @@ python-docx==1.1.0
 openpyxl==3.1.2
 python-magic
 aiofiles==23.2.1
+celery==5.3.6
+amqp==5.1.1

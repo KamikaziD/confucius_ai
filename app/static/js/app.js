@@ -3,12 +3,16 @@ let activeAgent = null;
 let currentModels = {};
 let availableModels = [];
 let selectedCollections = [];
+let client_id = null; // New global variable for client ID
+let websocket = null; // New global variable for WebSocket connection
 
 // Initialize
 document.addEventListener('DOMContentLoaded', async () => {
+    client_id = crypto.randomUUID(); // Generate a unique client ID
     await checkConnections();
     await loadSettings();
     setupEventListeners();
+    connectWebSocket(); // Establish WebSocket connection
 });
 
 // Event Listeners
@@ -48,6 +52,45 @@ function setupEventListeners() {
     });
     
     document.getElementById('mainFileInput').addEventListener('change', displayMainSelectedFiles);
+}
+
+// Function to establish WebSocket connection
+function connectWebSocket() {
+    const ws_protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+    const ws_url = `${ws_protocol}${window.location.host}/ws/${client_id}`;
+    websocket = new WebSocket(ws_url);
+
+    websocket.onopen = (event) => {
+        addLog('System', `WebSocket connected for client ${client_id}.`, false);
+    };
+
+    websocket.onmessage = (event) => {
+        const message = JSON.parse(event.data);
+        if (message.task_id) {
+            addLog('System', `Received update for task ${message.task_id}. Status: ${message.status}`, false);
+            if (message.status === 'SUCCESS') {
+                const result = message.result;
+                displayExecutionPlan(result.plan);
+                document.getElementById('results').innerHTML = `<pre>${result.final_result}</pre>`;
+                addLog('Master Agent', `Execution completed in ${result.duration ? result.duration.toFixed(2) : 'N/A'}s`, false);
+                setLoading(false); // Task completed, stop loading
+            } else if (message.status === 'FAILURE') {
+                addLog('System', `Task ${message.task_id} failed: ${message.error}`, true);
+                setLoading(false); // Task failed, stop loading
+            }
+        }
+    };
+
+    websocket.onclose = (event) => {
+        addLog('System', `WebSocket disconnected. Code: ${event.code}, Reason: ${event.reason}`, true);
+        // Attempt to reconnect after a delay
+        setTimeout(connectWebSocket, 5000);
+    };
+
+    websocket.onerror = (error) => {
+        addLog('System', `WebSocket error: ${error.message}`, true);
+        websocket.close();
+    };
 }
 
 // Helper to display selected files in the main input section
@@ -98,8 +141,9 @@ async function executeAgents() {
     
     const formData = new FormData();
     formData.append('query', query);
-    formData.append('collections', JSON.stringify(selectedCollections));
-    formData.append('urls', JSON.stringify(urls));
+    formData.append('collections_str', JSON.stringify(selectedCollections));
+    formData.append('urls_str', JSON.stringify(urls));
+    formData.append('client_id', client_id); // Add client_id to form data
 
     for (let i = 0; i < files.length; i++) {
         formData.append('files', files[i]);
@@ -112,25 +156,16 @@ async function executeAgents() {
         });
         
         const data = await response.json();
+        addLog('System', `Task ${data.task_id} accepted. Waiting for results...`, false);
         
-        // Display plan
-        displayExecutionPlan(data.plan);
-        
-        // Display results
-        document.getElementById('results').innerHTML = `<pre>${data.final_result}</pre>`;
-        
-        // Add log
-        addLog('Master Agent', `Execution completed in ${data.duration ? data.duration.toFixed(2) : 'N/A'}s`, false);
-        
-        // Clear inputs after successful execution
+        // Clear inputs after task accepted
         queryInput.value = '';
         mainFileInput.value = '';
         displayMainSelectedFiles(); // Clear displayed files
         
     } catch (error) {
         addLog('System', `Error: ${error.message}`, true);
-    } finally {
-        setLoading(false);
+        setLoading(false); // Stop loading on immediate error
     }
 }
 
