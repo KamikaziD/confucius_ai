@@ -11,10 +11,12 @@ from app.routers import agents, settings as settings_router, collections, histor
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    await redis_service.connect()
+    await redis_service.connect() # Connect async client
+    redis_service.connect_sync() # Connect sync client
     yield
     # Shutdown
-    await redis_service.disconnect()
+    await redis_service.disconnect() # Disconnect async client
+    redis_service.disconnect_sync() # Disconnect sync client
 
 app = FastAPI(
     title=settings.APP_NAME,
