@@ -12,18 +12,25 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 class ConnectionManager:
-    def __init__(self):
+    def __init__(self, redis_service_instance):
         self.active_connections: Dict[str, WebSocket] = {}
-        self.pubsub = redis_service.redis.pubsub() # Use async redis client for pubsub
+        self.redis_service = redis_service_instance
+        self.pubsub = None # Initialize pubsub later
 
     async def connect(self, websocket: WebSocket, client_id: str):
         await websocket.accept()
         self.active_connections[client_id] = websocket
         logger.info(f"WebSocket connected: {client_id}")
-        # Subscribe to client-specific channel
-        await self.pubsub.subscribe(f"agent_results:{client_id}")
-        # Start listening for messages in the background
-        asyncio.create_task(self.listen_for_redis_messages(client_id))
+        
+        # Initialize pubsub here, after redis_service is connected
+        if not self.pubsub:
+            self.pubsub = self.redis_service.redis.pubsub()
+            await self.pubsub.subscribe(f"agent_results:{client_id}")
+            asyncio.create_task(self.listen_for_redis_messages(client_id))
+        else:
+            # If pubsub already exists, just subscribe to the new channel
+            await self.pubsub.subscribe(f"agent_results:{client_id}")
+
 
     def disconnect(self, client_id: str):
         if client_id in self.active_connections:
@@ -54,7 +61,7 @@ class ConnectionManager:
                 logger.error(f"Error listening for Redis messages for client {client_id}: {e}", exc_info=True)
                 break # Exit loop on error
 
-manager = ConnectionManager()
+manager = ConnectionManager(redis_service)
 
 @router.websocket("/ws/{client_id}")
 async def websocket_endpoint(websocket: WebSocket, client_id: str):
