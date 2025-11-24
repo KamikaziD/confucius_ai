@@ -100,6 +100,8 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
     await manager.connect(websocket, client_id)
     try:
         while True:
+            if client_id not in manager.active_connections: # Explicitly check if client is still active
+                break
             message = await websocket.receive() # Receive any message type
             if message["type"] == "websocket.pong":
                 await manager.receive_pong(client_id)
