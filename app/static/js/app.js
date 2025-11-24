@@ -8,7 +8,15 @@ let websocket = null; // New global variable for WebSocket connection
 
 // Initialize
 document.addEventListener('DOMContentLoaded', async () => {
-    client_id = crypto.randomUUID(); // Generate a unique client ID
+    // Check if client_id exists in localStorage, otherwise generate a new one
+    let storedClientId = localStorage.getItem('client_id');
+    if (storedClientId) {
+        client_id = storedClientId;
+    } else {
+        client_id = crypto.randomUUID();
+        localStorage.setItem('client_id', client_id);
+    }
+    
     await checkConnections();
     await loadSettings();
     setupEventListeners();
