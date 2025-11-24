@@ -7,6 +7,9 @@ from typing import Dict, Any, List, Optional
 import uuid
 from datetime import datetime
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -31,6 +34,7 @@ async def execute_agents(
     try:
         collections = json.loads(collections_str)
         urls = json.loads(urls_str)
+
         # Get agent models from Redis or use defaults
         agent_models_data = await redis_service.get("agent_models")
         agent_models = agent_models_data or {
@@ -56,12 +60,20 @@ async def execute_agents(
 
         # Process files and URLs
         file_contents = []
-        if urls:
-            url_files = await file_service.get_files_from_urls(urls)
-            file_contents.extend([file_service.read_file_content(f) for f in url_files])
-        if files:
-            uploaded_files = await file_service.get_files_from_uploads(files)
-            file_contents.extend([file_service.read_file_content(f) for f in uploaded_files])
+        try:
+            if urls:
+                logger.info(f"Processing URLs: {urls}")
+                url_files = await file_service.get_files_from_urls(urls)
+                file_contents.extend([file_service.read_file_content(f) for f in url_files])
+                logger.info(f"Processed {len(url_files)} URLs.")
+            if files:
+                logger.info(f"Processing {len(files)} uploaded files.")
+                uploaded_files = await file_service.get_files_from_uploads(files)
+                file_contents.extend([file_service.read_file_content(f) for f in uploaded_files])
+                logger.info(f"Processed {len(uploaded_files)} uploaded files.")
+        except Exception as file_e:
+            logger.error(f"Error during file/URL processing: {file_e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"File/URL processing error: {str(file_e)}")
 
         # Combine context
         final_context = context or ""
@@ -104,4 +116,5 @@ async def execute_agents(
         return result
 
     except Exception as e:
+        logger.error(f"Error in execute_agents endpoint: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
