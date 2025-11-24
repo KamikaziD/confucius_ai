@@ -120,7 +120,7 @@ async function executeAgents() {
         document.getElementById('results').innerHTML = `<pre>${data.final_result}</pre>`;
         
         // Add log
-        addLog('Master Agent', `Execution completed in ${data.duration.toFixed(2)}s`, false);
+        addLog('Master Agent', `Execution completed in ${data.duration ? data.duration.toFixed(2) : 'N/A'}s`, false);
         
         // Clear inputs after successful execution
         queryInput.value = '';
