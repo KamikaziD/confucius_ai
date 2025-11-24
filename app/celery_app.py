@@ -14,7 +14,8 @@ celery_app.conf.update(
     accept_content=['json'],
     timezone='UTC',
     enable_utc=True,
+    include=['app.tasks'] # Auto-discover tasks from app.tasks
 )
 
 # Import tasks here to ensure they are registered
-from app.tasks import execute_master_agent_task
+# from app.tasks import execute_master_agent_task
