@@ -6,18 +6,18 @@ from contextlib import asynccontextmanager
 
 from app.config import settings
 from app.services.redis_service import redis_service
-from app.routers import agents, settings as settings_router, collections, history, ws # Import ws router
+# Import ws router
+from app.routers import agents, settings as settings_router, collections, history, ws
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    await redis_service.connect() # Connect async client
-    redis_service.connect_sync() # Connect sync client
-    await ws.manager.startup() # Initialize WebSocket manager's pubsub listener
+    await redis_service.connect()  # Connect async client
+    await ws.manager.startup()  # Initialize WebSocket manager's pubsub listener
     yield
     # Shutdown
-    await redis_service.disconnect() # Disconnect async client
-    redis_service.disconnect_sync() # Disconnect sync client
+    await redis_service.disconnect()  # Disconnect async client
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -40,15 +40,19 @@ templates = Jinja2Templates(directory="app/templates")
 
 # Include routers
 app.include_router(agents.router, prefix="/api/agents", tags=["agents"])
-app.include_router(settings_router.router, prefix="/api/settings", tags=["settings"])
-app.include_router(collections.router, prefix="/api/collections", tags=["collections"])
+app.include_router(settings_router.router,
+                   prefix="/api/settings", tags=["settings"])
+app.include_router(collections.router,
+                   prefix="/api/collections", tags=["collections"])
 app.include_router(history.router, prefix="/api/history", tags=["history"])
-app.include_router(ws.router) # Include WebSocket router
+app.include_router(ws.router)  # Include WebSocket router
+
 
 @app.get("/")
 async def root(request: Request):
     """Serve the main HTML page"""
     return templates.TemplateResponse("index.html", {"request": request})
+
 
 @app.get("/health")
 async def health_check():

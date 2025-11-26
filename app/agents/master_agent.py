@@ -5,34 +5,41 @@ from app.models.agent import ExecutionPlan, PlanStep, ExecutionMode
 from typing import Dict, Any, List, Optional
 import asyncio
 import time
+import json
 from datetime import datetime
-from app.services.redis_service import redis_service # Import redis_service # Import datetime
+from app.services.redis_service import redis_service
+
 
 class MasterAgent:
     def __init__(
         self,
         agent_models: Dict[str, str],
         system_prompts: Dict[str, str],
-        client_id: Optional[str] = None # Add client_id
+        client_id: Optional[str] = None  # Add client_id
     ):
-        self.ocr_agent = OCRAgent(agent_models["ocr"], system_prompts["ocr"], client_id=client_id)
-        self.info_agent = InfoAgent(agent_models["info"], system_prompts["info"], client_id=client_id)
+        self.ocr_agent = OCRAgent(
+            agent_models["ocr"], system_prompts["ocr"], client_id=client_id)
+        self.info_agent = InfoAgent(
+            agent_models["info"], system_prompts["info"], client_id=client_id)
         self.rag_agent = RAGAgent(
             agent_models["rag"],
             agent_models["embedding"],
             system_prompts["rag"],
-            client_id=client_id # Pass client_id
+            client_id=client_id  # Pass client_id
         )
         self.agent_models = agent_models
-        self.client_id = client_id # Store client_id
-    
+        self.client_id = client_id  # Store client_id
+
     def analyze_request(self, query: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Analyze user request to determine required agents"""
         query_lower = query.lower()
         context_text = context.get("text", "").lower() if context else ""
+        urls_present = bool(context.get("urls")) if context else False
 
-        needs_ocr = "text" in context_text or any(kw in query_lower for kw in ["document", "text", "extract", "read", "scan"])
-        needs_info = any(kw in query_lower for kw in ["search", "find", "information", "lookup", "research"])
+        needs_ocr = "compliance" in context_text or any(
+            kw in query_lower for kw in ["compliance", "document", "text", "extract", "read", "scan"]) or urls_present
+        needs_info = any(kw in query_lower for kw in [
+                         "search", "find", "information", "lookup", "research"])
         needs_rag = True  # Always use RAG for context
 
         complexity = sum([needs_ocr, needs_info, needs_rag])
@@ -42,34 +49,38 @@ class MasterAgent:
             "needs_info": needs_info,
             "needs_rag": needs_rag,
             "complexity": complexity,
-            "summary": f"Request requires {complexity} agents. OCR: {needs_ocr}, Info: {needs_info}, RAG: {needs_rag}"
+            "summary": f"Request requires {complexity} agents. OCR: {needs_ocr}, Info: {needs_info}, RAG: {needs_rag}",
+            "urls_present": urls_present
         }
-    
+
     def create_execution_plan(self, analysis: Dict[str, Any]) -> ExecutionPlan:
         """Create execution plan based on analysis"""
         steps = []
         agents = []
-        
+
         if analysis["needs_ocr"]:
+            reason = "User request mentions document or text extraction."
+            if analysis.get("urls_present"):
+                reason = "URLs detected in the request, requiring content extraction."
             steps.append(PlanStep(
                 id=len(steps) + 1,
                 agent="OCR Agent",
-                action="Extract and analyze text from document",
+                action="Extract and analyze text from document or URL",
                 depends_on=[],
-                reasoning="User request mentions document or text extraction"
+                reasoning=reason
             ))
             agents.append("OCR Agent")
-        
+
         if analysis["needs_info"]:
             steps.append(PlanStep(
                 id=len(steps) + 1,
                 agent="Info Agent",
                 action="Search for relevant information",
                 depends_on=[],
-                reasoning="User request requires external information lookup"
+                reasoning="User request requires external information lookup."
             ))
             agents.append("Info Agent")
-        
+
         if analysis["needs_rag"]:
             depends_on = [1] if analysis["needs_ocr"] else []
             steps.append(PlanStep(
@@ -77,17 +88,18 @@ class MasterAgent:
                 agent="RAG Agent",
                 action="Query knowledge base for context",
                 depends_on=depends_on,
-                reasoning="Knowledge base consultation needed for comprehensive response"
+                reasoning="Knowledge base consultation needed for comprehensive response."
             ))
             agents.append("RAG Agent")
-        
+
         return ExecutionPlan(
             steps=steps,
             agents=list(set(agents)),
-            execution_mode=ExecutionMode.PARALLEL if analysis["complexity"] > 1 else ExecutionMode.SEQUENTIAL,
+            execution_mode=ExecutionMode.PARALLEL if analysis[
+                "complexity"] > 1 else ExecutionMode.SEQUENTIAL,
             estimated_time=len(steps) * 1000
         )
-    
+
     async def execute_plan(
         self,
         plan: ExecutionPlan,
@@ -96,62 +108,70 @@ class MasterAgent:
     ) -> Dict[str, Any]:
         """Execute the plan"""
         results = {}
-        
+
         # Separate independent and dependent agents
         independent_steps = [s for s in plan.steps if not s.depends_on]
         dependent_steps = [s for s in plan.steps if s.depends_on]
-        
+
         # Execute independent agents in parallel
         if plan.execution_mode == ExecutionMode.PARALLEL and len(independent_steps) > 1:
             tasks = []
             for step in independent_steps:
-                self.report_activity(f"Starting parallel execution for {step.agent}: {step.action}")
+                await self.report_activity(
+                    f"Starting parallel execution for {step.agent}: {step.action}")
                 if step.agent == "OCR Agent":
-                    tasks.append(("OCR Agent", self.ocr_agent.execute(query, context)))
+                    tasks.append(
+                        ("OCR Agent", self.ocr_agent.execute(query, context)))
                 elif step.agent == "Info Agent":
-                    tasks.append(("Info Agent", self.info_agent.execute(query, context)))
-            
+                    tasks.append(
+                        ("Info Agent", self.info_agent.execute(query, context)))
+
             parallel_results = await asyncio.gather(*[task[1] for task in tasks])
             for (agent_name, _), result in zip(tasks, parallel_results):
                 results[agent_name] = result
-                self.report_activity(f"Completed parallel execution for {agent_name}.")
+                await self.report_activity(
+                    f"Completed parallel execution for {agent_name}.")
         else:
             # Sequential execution
             for step in independent_steps:
-                self.report_activity(f"Starting sequential execution for {step.agent}: {step.action}")
+                await self.report_activity(
+                    f"Starting sequential execution for {step.agent}: {step.action}")
                 if step.agent == "OCR Agent":
                     results["OCR Agent"] = await self.ocr_agent.execute(query, context)
                 elif step.agent == "Info Agent":
                     results["Info Agent"] = await self.info_agent.execute(query, context)
-                self.report_activity(f"Completed sequential execution for {step.agent}.")
-        
+                await self.report_activity(
+                    f"Completed sequential execution for {step.agent}.")
+
         # Execute dependent agents
         for step in dependent_steps:
-            self.report_activity(f"Starting dependent execution for {step.agent}: {step.action}")
+            await self.report_activity(
+                f"Starting dependent execution for {step.agent}: {step.action}")
             if step.agent == "RAG Agent":
                 rag_context = context or {}
                 if "OCR Agent" in results:
                     rag_context["text"] = results["OCR Agent"]["text"]
                 results["RAG Agent"] = await self.rag_agent.execute(query, rag_context)
-            self.report_activity(f"Completed dependent execution for {step.agent}.")
-        
+            await self.report_activity(
+                f"Completed dependent execution for {step.agent}.")
+
         return results
-    
-    def synthesize_results(
+
+    async def synthesize_results(
         self,
         results: Dict[str, Any],
         plan: ExecutionPlan,
         query: str
     ) -> str:
         """Synthesize results from all agents"""
-        self.report_activity("Synthesizing results from all agents.")
+        await self.report_activity("Synthesizing results from all agents.")
         output = "=== MASTER AGENT SYNTHESIS ===\n\n"
         output += f"📋 EXECUTION SUMMARY:\n"
         output += f"- Master Model: {self.agent_models['master']}\n"
         output += f"- Total Steps: {len(plan.steps)}\n"
         output += f"- Agents Used: {', '.join(plan.agents)}\n"
         output += f"- Execution Mode: {plan.execution_mode.value}\n\n"
-        
+
         if "OCR Agent" in results:
             ocr = results["OCR Agent"]
             output += f"📄 OCR AGENT RESULTS:\n"
@@ -159,13 +179,13 @@ class MasterAgent:
             output += f"- Document Type: {ocr['detected_type']}\n"
             output += f"- Confidence: {ocr['confidence']*100:.0f}%\n"
             output += f"- Analysis:\n{ocr['analysis']}\n\n"
-        
+
         if "Info Agent" in results:
             info = results["Info Agent"]
             output += f"🔍 INFO AGENT RESULTS:\n"
             output += f"- Model: {info['model']}\n"
             output += f"{info['full_response']}\n\n"
-        
+
         if "RAG Agent" in results:
             rag = results["RAG Agent"]
             output += f"📚 RAG AGENT RESULTS:\n"
@@ -174,13 +194,13 @@ class MasterAgent:
             output += f"- Vector Search Results: {rag['vector_results_count']}\n"
             output += f"- Collections Searched: {', '.join(rag['collections_searched'])}\n"
             output += f"\nResponse:\n{rag['response']}\n\n"
-        
+
         output += f"💡 CONCLUSION:\n"
         output += f"All {len(plan.steps)} planned steps completed successfully.\n"
-        
-        self.report_activity("Synthesis complete.")
+
+        await self.report_activity("Synthesis complete.")
         return output
-    
+
     async def execute(
         self,
         query: str,
@@ -188,27 +208,27 @@ class MasterAgent:
     ) -> Dict[str, Any]:
         """Main execution method"""
         start_time = time.time()
-        
-        self.report_activity("Analyzing request...")
+
+        await self.report_activity("Analyzing request...")
         # Analyze request
         analysis = self.analyze_request(query, context)
-        self.report_activity("Request analysis complete.")
-        
-        self.report_activity("Creating execution plan...")
+        await self.report_activity("Request analysis complete.")
+
+        await self.report_activity("Creating execution plan...")
         # Create execution plan
         plan = self.create_execution_plan(analysis)
-        self.report_activity("Execution plan created.")
-        
-        self.report_activity("Executing plan...")
+        await self.report_activity("Execution plan created.")
+
+        await self.report_activity("Executing plan...")
         # Execute plan
         results = await self.execute_plan(plan, query, context)
-        self.report_activity("Plan execution complete.")
-        
+        await self.report_activity("Plan execution complete.")
+
         # Synthesize results
-        final_result = self.synthesize_results(results, plan, query)
-        
+        final_result = await self.synthesize_results(results, plan, query)
+
         duration = time.time() - start_time
-        
+
         return {
             "query": query,
             "analysis": analysis,
@@ -218,16 +238,17 @@ class MasterAgent:
             "duration": duration,
             "status": "success"
         }
-    
+
     # Add report_activity method to MasterAgent as well, inheriting from BaseAgent
-    def report_activity(self, message: str, is_error: bool = False):
+    async def report_activity(self, message: str, is_error: bool = False):
         """Report master agent activity to the client via Redis Pub/Sub"""
         if self.client_id:
             activity_message = {
                 "type": "activity_update",
-                "agent": "Master Agent", # Master agent specific
+                "agent": "Master Agent",  # Master agent specific
                 "message": message,
                 "is_error": is_error,
                 "timestamp": datetime.now().isoformat()
             }
-            redis_service.publish_sync(f"agent_results:{self.client_id}", json.dumps(activity_message))
+            await redis_service.publish(
+                f"agent_results:{self.client_id}", json.dumps(activity_message))

@@ -34,12 +34,12 @@ class RAGAgent(BaseAgent):
         all_results = []
         for collection in collections:
             try:
-                results = qdrant_service.search(collection, query_embedding, limit=3)
+                results = await qdrant_service.search(collection, query_embedding, limit=3)
                 for r in results:
                     r["collection"] = collection
                 all_results.extend(results)
-            except:
-                pass
+            except Exception as e:
+                self.report_activity(f"Failed to search collection {collection}: {e}", is_error=True)
         
         # Sort by score
         all_results.sort(key=lambda x: x["score"], reverse=True)

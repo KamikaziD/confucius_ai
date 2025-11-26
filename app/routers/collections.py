@@ -13,7 +13,7 @@ router = APIRouter()
 async def list_collections():
     """List all Qdrant collections"""
     try:
-        collections = qdrant_service.list_collections()
+        collections = await qdrant_service.list_collections()
         return {"collections": collections}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -22,7 +22,7 @@ async def list_collections():
 async def create_collection(name: str, vector_size: int = 768):
     """Create a new collection"""
     try:
-        qdrant_service.create_collection(name, vector_size)
+        await qdrant_service.create_collection(name, vector_size)
         return {"success": True, "collection": name}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -31,7 +31,7 @@ async def create_collection(name: str, vector_size: int = 768):
 async def delete_collection(collection_name: str):
     """Delete a collection"""
     try:
-        qdrant_service.delete_collection(collection_name)
+        await qdrant_service.delete_collection(collection_name)
         return {"success": True}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -80,7 +80,7 @@ async def upload_documents(
                     **chunk["metadata"]
                 }
                 
-                qdrant_service.add_point(collection, embedding, payload)
+                await qdrant_service.add_point(collection, embedding, payload)
             
             results.append({
                 "filename": file.filename,

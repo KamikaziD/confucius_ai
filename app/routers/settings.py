@@ -104,7 +104,7 @@ async def check_connections():
     """Check all service connections"""
     return {
         "ollama": await ollama_service.check_connection(),
-        "qdrant": qdrant_service.check_connection(),
+        "qdrant": await qdrant_service.check_connection(),
         "redis": await redis_service.ping()
     }
 

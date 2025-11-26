@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     OLLAMA_URL: str = "http://localhost:11434"
     OLLAMA_DEFAULT_MODEL: str = "qwen3-vl:4b"
     OLLAMA_EMBEDDING_MODEL: str = "qwen3-embeddding:8b"
-    OLLAMA_GENERATE_TIMEOUT: int = 300
+    OLLAMA_GENERATE_TIMEOUT: int = 600
     OLLAMA_EMBEDDING_TIMEOUT: int = 120
 
     # Qdrant

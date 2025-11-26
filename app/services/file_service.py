@@ -8,6 +8,7 @@ import openpyxl
 import io
 import os
 import platform
+import base64
 
 if platform.system() == "Darwin":
     # For macOS, try to find libmagic installed by Homebrew
@@ -19,7 +20,7 @@ class FileService:
     async def get_files_from_urls(self, urls: List[str]) -> List[Dict[str, Any]]:
         """Fetch files from a list of URLs."""
         files = []
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=300.0) as client:
             for url in urls:
                 try:
                     response = await client.get(url)
@@ -43,20 +44,22 @@ class FileService:
             })
         return files
 
-    def read_file_content(self, file: Dict[str, Any]) -> str:
-        """Read the content of a file and return it as a string."""
+    def read_file_content(self, file: Dict[str, Any]) -> Dict[str, str]:
+        """Read the content of a file and return it as a dictionary with type and content."""
         mime_type = magic.from_buffer(file["content"], mime=True)
         
         if "pdf" in mime_type:
-            return self._read_pdf(file["content"])
+            return {"type": "text", "content": self._read_pdf(file["content"])}
         elif "vnd.openxmlformats-officedocument.wordprocessingml.document" in mime_type:
-            return self._read_docx(file["content"])
+            return {"type": "text", "content": self._read_docx(file["content"])}
         elif "vnd.openxmlformats-officedocument.spreadsheetml.sheet" in mime_type:
-            return self._read_xlsx(file["content"])
+            return {"type": "text", "content": self._read_xlsx(file["content"])}
         elif "text" in mime_type:
-            return file["content"].decode("utf-8")
+            return {"type": "text", "content": file["content"].decode("utf-8")}
+        elif mime_type in ["image/jpeg", "image/png"]:
+            return {"type": "image", "content": base64.b64encode(file["content"]).decode("utf-8")}
         else:
-            return f"Unsupported file type: {mime_type}"
+            return {"type": "unsupported", "content": f"Unsupported file type: {mime_type}"}
 
     def _read_pdf(self, content: bytes) -> str:
         """Read the content of a PDF file."""

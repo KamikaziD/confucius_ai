@@ -55,7 +55,7 @@
             <label>Enter your request:</label>
             <div class="input-group">
                 <input type="text" id="queryInput" placeholder="e.g., Extract text from this invoice document and search for pricing information">
-                <input type="file" id="mainFileInput" multiple accept=".txt,.pdf,.docx,.xlsx" class="hidden">
+                <input type="file" id="mainFileInput" multiple accept=".txt,.pdf,.docx,.xlsx,.jpg,.jpeg,.png,image/jpeg,image/png" class="hidden">
                 <button id="mainUploadBtn" class="btn-secondary icon-btn" title="Upload Files">📁</button>
                 <button id="executeBtn" class="btn-primary">
                     <span id="executeText">Execute</span>
@@ -118,7 +118,7 @@
                         <h3>Collections</h3>
                         <div id="collectionSettings"></div>
                         <button id="uploadBtn" class="btn-secondary">Upload Documents</button>
-                        <input type="file" id="fileInput" multiple accept=".txt,.pdf,.docx,.xlsx" class="hidden">
+                        <input type="file" id="fileInput" multiple accept=".txt,.pdf,.docx,.xlsx,.jpg,.jpeg,.png,image/jpeg,image/png" class="hidden">
                     </div>
                 </div>
             </div>
@@ -146,6 +146,28 @@
                 </div>
                 <div class="modal-body">
                     <div id="promptsList"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Upload Modal -->
+        <div id="uploadModal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Upload to Collection</h2>
+                    <button class="close-btn">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p class="modal-subtext">Select a collection in the main settings panel first. Only the first selected collection will be used.</p>
+                    <div id="uploadDropzone" class="dropzone">
+                        <input type="file" id="uploadFileInput" multiple accept=".txt,.pdf,.docx,.xlsx,.jpg,.jpeg,.png,image/jpeg,image/png" class="hidden">
+                        <p>Drag & drop files here, or <a href="#" id="uploadBrowseLink">browse</a></p>
+                    </div>
+                    <div id="uploadFilesList" class="upload-files-list"></div>
+                    <div class="modal-footer">
+                        <button id="cancelUploadBtn" class="btn-secondary">Cancel</button>
+                        <button id="submitUploadBtn" class="btn-primary">Submit</button>
+                    </div>
                 </div>
             </div>
         </div>

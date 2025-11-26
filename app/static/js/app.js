@@ -53,10 +53,39 @@ function setupEventListeners() {
     });
   });
 
-  // Upload button
+  // Upload button in settings
   document.getElementById("uploadBtn").addEventListener("click", () => {
-    document.getElementById("fileInput").click();
+    // Check if a collection is selected
+    if (selectedCollections.length === 0) {
+      alert("Please select a collection to upload to first.");
+      return;
+    }
+    openModal("uploadModal");
   });
+
+  // Upload modal events
+  document.getElementById("uploadBrowseLink").addEventListener("click", (e) => {
+    e.preventDefault();
+    document.getElementById("uploadFileInput").click();
+  });
+  document.getElementById("cancelUploadBtn").addEventListener("click", () => closeModal("uploadModal"));
+  document.getElementById("submitUploadBtn").addEventListener("click", uploadDocuments);
+  document.getElementById("uploadFileInput").addEventListener("change", displayUploadSelectedFiles);
+
+  // Drag and drop for upload modal
+  const dropzone = document.getElementById("uploadDropzone");
+  dropzone.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    dropzone.classList.add("active");
+  });
+  dropzone.addEventListener("dragleave", () => dropzone.classList.remove("active"));
+  dropzone.addEventListener("drop", (e) => {
+    e.preventDefault();
+    dropzone.classList.remove("active");
+    document.getElementById("uploadFileInput").files = e.dataTransfer.files;
+    displayUploadSelectedFiles();
+  });
+
 
   // Upload button in main input
   document.getElementById("mainUploadBtn").addEventListener("click", () => {
@@ -66,6 +95,22 @@ function setupEventListeners() {
   document
     .getElementById("mainFileInput")
     .addEventListener("change", displayMainSelectedFiles);
+}
+
+function displayUploadSelectedFiles() {
+  const fileInput = document.getElementById("uploadFileInput");
+  const displayDiv = document.getElementById("uploadFilesList");
+  displayDiv.innerHTML = ""; // Clear previous selections
+
+  if (fileInput.files.length > 0) {
+    const ul = document.createElement("ul");
+    for (let i = 0; i < fileInput.files.length; i++) {
+      const li = document.createElement("li");
+      li.textContent = fileInput.files[i].name;
+      ul.appendChild(li);
+    }
+    displayDiv.appendChild(ul);
+  }
 }
 
 // Function to establish WebSocket connection
@@ -87,74 +132,93 @@ function connectWebSocket() {
   }
 
   websocket.onopen = (event) => {
+    console.log(`[WS] Connection opened for client: ${client_id}`, event.type);
     addLog("System", `WebSocket connected for client ${client_id}.`, false);
-    console.log(`WebSocket connected for client ${client_id}.`);
-    heartbeat();
+    // heartbeat();
   };
 
   websocket.onmessage = (event) => {
-    heartbeat(); // Reset heartbeat on any message
-    const message = JSON.parse(event.data);
-    if (message.type === "activity_update") {
-      addLog(message.agent, message.message, message.is_error);
-      console.log(
-        "|activity-update| ",
-        message.agent,
-        message.message,
-        message.is_error
-      );
-    } else if (message.task_id) {
-      console.log(
-        "System",
-        `Received update for task ${message.task_id}. Status: ${message.status}`,
-        false
-      );
-      addLog(
-        "System",
-        `Received update for task ${message.task_id}. Status: ${message.status}`,
-        false
-      );
-      if (message.status === "SUCCESS") {
-        const result = message.result;
-        displayExecutionPlan(result.plan);
-        document.getElementById(
-          "results"
-        ).innerHTML = `<pre>${result.final_result}</pre>`;
+    // heartbeat(); // Reset heartbeat on any message
+    console.log(`[WS] INCOMING MESSAGE for client ${client_id}:`, event.data);
+    let message = null;
+    if (message !== null) {
+      try {
+        if (typeof event.data === "string") {
+          message = event.data;
+        } else {
+          message = JSON.parse(event.data);
+        }
+      } catch (e) {
+        console.warn("On Message error ", e);
+      }
+      console.log("Incoming Message: ", message.type);
+      if (message.type === "activity_update") {
+        addLog(message.agent, message.message, message.is_error);
         console.log(
-          "Master Agent",
-          `Execution completed in ${
-            result.duration ? result.duration.toFixed(2) : "N/A"
-          }s`,
+          "|activity-update| ",
+          message.agent,
+          message.message,
+          message.is_error
+        );
+      } else if (message.task_id) {
+        console.log(
+          "System",
+          `Received update for task ${message.task_id}. Status: ${message.status}`,
           false
         );
-        addLog(
-          "Master Agent",
-          `Execution completed in ${
-            result.duration ? result.duration.toFixed(2) : "N/A"
-          }s`,
-          false
-        );
-        setLoading(false); // Task completed, stop loading
-      } else if (message.status === "FAILURE") {
         addLog(
           "System",
-          `Task ${message.task_id} failed: ${message.error}`,
-          true
+          `Received update for task ${message.task_id}. Status: ${message.status}`,
+          false
         );
-        setLoading(false); // Task failed, stop loading
+        if (message.status === "SUCCESS") {
+          const result = message.result;
+          console.info(result);
+          displayExecutionPlan(result.plan);
+          document.getElementById(
+            "results"
+          ).innerHTML = `<pre>${result.final_result}</pre>`;
+          console.log(
+            "Master Agent",
+            `Execution completed in ${
+              result.duration ? result.duration.toFixed(2) : "N/A"
+            }s`,
+            false
+          );
+          addLog(
+            "Master Agent",
+            `Execution completed in ${
+              result.duration ? result.duration.toFixed(2) : "N/A"
+            }s`,
+            false
+          );
+          setLoading(false); // Task completed, stop loading
+        } else if (message.status === "FAILURE") {
+          console.log(
+            "System",
+            `Task ${message.task_id} failed: ${message.error}`,
+            true
+          );
+          addLog(
+            "System",
+            `Task ${message.task_id} failed: ${message.error}`,
+            true
+          );
+          setLoading(false); // Task failed, stop loading
+        }
       }
     }
   };
 
   websocket.onclose = (event) => {
-    clearTimeout(pingTimeout); // Clear heartbeat on close
+    // clearTimeout(pingTimeout); // Clear heartbeat on close
+    console.warn(
+      `[WS] Connection closed for client ${client_id}. Code: ${event.code}, Reason: ${event.reason}`
+    );
     addLog(
       "System",
       `WebSocket disconnected. Code: ${event.code}, Reason: ${event.reason}`,
       true
-    );
-    console.warn(
-      `WebSocket disconnected. Code: ${event.code}, Reason: ${event.reason}`
     );
     // Attempt to reconnect after a delay
     setTimeout(connectWebSocket, 5000);
@@ -162,15 +226,15 @@ function connectWebSocket() {
 
   websocket.onerror = (error) => {
     clearTimeout(pingTimeout); // Clear heartbeat on error
+    console.error(`[WS] Error for client ${client_id}:`, error);
     addLog("System", `WebSocket error: ${error.message}`, true);
-    console.error(`WebSocket error: ${error.message}`);
     websocket.close();
   };
 
-  websocket.onpong = () => {
-    heartbeat(); // Reset heartbeat on pong
-    console.log("Received pong from server.");
-  };
+  //   websocket.onpong = () => {
+  //     // heartbeat(); // Reset heartbeat on pong
+  //     console.log("Received pong from server.");
+  //   };
 }
 
 // Helper to display selected files in the main input section
@@ -396,18 +460,27 @@ async function savePrompt(agent) {
 }
 
 async function uploadDocuments() {
-  const fileInput = document.getElementById("fileInput");
+  const fileInput = document.getElementById("uploadFileInput");
   const files = fileInput.files;
+  const submitBtn = document.getElementById("submitUploadBtn");
 
-  if (files.length === 0 || selectedCollections.length === 0) {
-    alert("Please select files and a collection");
+  if (files.length === 0) {
+    alert("Please select files to upload.");
     return;
   }
+  if (selectedCollections.length === 0) {
+    alert("Please select a collection to upload to first.");
+    return;
+  }
+
+  submitBtn.disabled = true;
+  submitBtn.textContent = "Uploading...";
 
   const formData = new FormData();
   for (let file of files) {
     formData.append("files", file);
   }
+  // Use the first selected collection
   formData.append("collection", selectedCollections[0]);
 
   try {
@@ -423,9 +496,17 @@ async function uploadDocuments() {
 
     const data = await response.json();
     alert(`Uploaded ${data.results.length} files successfully!`);
+    
+    // Reset form
     fileInput.value = "";
+    document.getElementById("uploadFilesList").innerHTML = "";
+    closeModal("uploadModal");
+
   } catch (error) {
     alert("Upload failed: " + error.message);
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = "Submit";
   }
 }
 

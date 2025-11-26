@@ -8,9 +8,10 @@ import uuid
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 import logging
-import asyncio # Import asyncio
+import asyncio  # Import asyncio
 
 logger = logging.getLogger(__name__)
+
 
 @celery_app.task(bind=True)
 def execute_master_agent_task(
@@ -19,9 +20,14 @@ def execute_master_agent_task(
     context_str: Optional[str],
     collections_json: str,
     urls_json: str,
-    files_data: List[Dict[str, Any]], # [{"filename": "name.pdf", "content": b"..."}]
+    # [{"filename": "name.pdf", "content": b"..."}]
+    files_data: List[Dict[str, Any]],
     client_id: str
 ):
+    # Create and set a new event loop for the task
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
     try:
         # Deserialize inputs
         collections = json.loads(collections_json)
@@ -29,7 +35,8 @@ def execute_master_agent_task(
         context = json.loads(context_str) if context_str else {}
 
         # Get agent models from Redis or use defaults
-        agent_models_data = redis_service.get_sync("agent_models") # Use sync version for Celery task
+        agent_models_data = loop.run_until_complete(redis_service.get(
+            "agent_models"))  # Use sync version for Celery task
         agent_models = agent_models_data or {
             "master": "qwen3-vl:4b",
             "ocr": "qwen3-vl:4b",
@@ -39,7 +46,7 @@ def execute_master_agent_task(
         }
 
         # Get system prompts from Redis or use defaults
-        system_prompts_data = redis_service.get_sync("system_prompts")
+        system_prompts_data = loop.run_until_complete(redis_service.get("system_prompts"))
         if system_prompts_data:
             system_prompts = {
                 key: prompt["current"]
@@ -53,37 +60,34 @@ def execute_master_agent_task(
                 "rag": "You are a RAG (Retrieval-Augmented Generation) agent. Combine vector search results and knowledge base information to provide accurate, contextual responses."
             }
 
-        # Create master agent
+        # Create master agent *after* setting the new event loop
         master = MasterAgent(agent_models, system_prompts, client_id=client_id)
 
-        # Process files and URLs
-        file_contents = []
-        if urls:
-            logger.info(f"Task {self.request.id}: Processing URLs: {urls}")
-            url_files = asyncio.run(file_service.get_files_from_urls(urls))
-            file_contents.extend([file_service.read_file_content(f) for f in url_files])
-            logger.info(f"Task {self.request.id}: Processed {len(url_files)} URLs.")
-        
-        # Reconstruct file objects for file_service
+        # Process uploaded files
         processed_files_for_service = []
         for fd in files_data:
-            # file_service.read_file_content expects a dict with "content" key
-            processed_files_for_service.append({"filename": fd["filename"], "content": fd["content"]})
+            processed_files_for_service.append(
+                {"filename": fd["filename"], "content": fd["content"]})
 
+        text_parts = []
+        image_parts = []
         if processed_files_for_service:
-            logger.info(f"Task {self.request.id}: Processing {len(processed_files_for_service)} uploaded files.")
-            # file_service.read_file_content is sync, can be called directly
-            file_contents.extend([file_service.read_file_content(f) for f in processed_files_for_service])
-            logger.info(f"Task {self.request.id}: Processed {len(processed_files_for_service)} uploaded files.")
+            logger.info(
+                f"Task {self.request.id}: Processing {len(processed_files_for_service)} uploaded files.")
+            file_contents = [file_service.read_file_content(f)
+                             for f in processed_files_for_service]
+            for item in file_contents:
+                if item["type"] == "text":
+                    text_parts.append(item["content"])
+                elif item["type"] == "image":
+                    image_parts.append(item["content"])
+            logger.info(
+                f"Task {self.request.id}: Processed {len(text_parts)} text files and {len(image_parts)} image files.")
 
         # Combine context
         final_context = context.get("text", "")
-        if file_contents:
-            final_context += "\n\n" + "\n\n".join(file_contents)
-        
-        # Add URLs to context if they exist and are not handled as files
-        if urls and not file_contents: # Only add if not already processed as files
-            final_context += "\n\nURLs: " + ", ".join(urls)
+        if text_parts:
+            final_context += "\n\n" + "\n\n".join(text_parts)
 
         # Execute
         exec_context = {}
@@ -91,8 +95,12 @@ def execute_master_agent_task(
             exec_context["collections"] = collections
         if final_context:
             exec_context["text"] = final_context
+        if urls:
+            exec_context["urls"] = urls
+        if image_parts:
+            exec_context["images"] = image_parts
 
-        result = asyncio.run(master.execute(query, exec_context))
+        result = loop.run_until_complete(master.execute(query, exec_context))
 
         # Save to history
         session_id = str(uuid.uuid4())
@@ -107,24 +115,26 @@ def execute_master_agent_task(
             "timestamp": datetime.now().isoformat(),
             "model": agent_models["master"]
         }
-
-        # 30 days
-        redis_service.set_sync(f"history:{session_id}", session, 2592000)
+        loop.run_until_complete(redis_service.set(f"history:{session_id}", session, 2592000))
 
         # Publish event to client via Redis Pub/Sub
-        redis_service.publish_sync(f"agent_results:{client_id}", json.dumps({
+        loop.run_until_complete(redis_service.publish(f"agent_results:{client_id}", json.dumps({
             "task_id": self.request.id,
             "status": "SUCCESS",
             "result": result
-        }))
+        })))
 
         return result
 
     except Exception as e:
-        logger.error(f"Task {self.request.id}: Error during master agent execution: {e}", exc_info=True)
-        redis_service.publish_sync(f"agent_results:{client_id}", json.dumps({
+        logger.error(
+            f"Task {self.request.id}: Error during master agent execution: {e}", exc_info=True)
+        loop.run_until_complete(redis_service.publish(f"agent_results:{client_id}", json.dumps({
             "task_id": self.request.id,
             "status": "FAILURE",
             "error": str(e)
-        }))
-        raise # Re-raise to let Celery mark the task as failed
+        })))
+        raise
+    finally:
+        # Close the event loop
+        loop.close()

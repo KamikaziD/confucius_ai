@@ -12,22 +12,27 @@ class OllamaService:
         prompt: str,
         system_prompt: str,
         model: str,
-        stream: bool = False
+        stream: bool = False,
+        images: Optional[List[str]] = None
     ) -> str:
-        """Generate completion from Ollama"""
+        """Generate completion from Ollama, with optional image support for vision models."""
         async with httpx.AsyncClient(timeout=settings.OLLAMA_GENERATE_TIMEOUT) as client:
+            payload = {
+                "model": model,
+                "prompt": prompt,
+                "system": system_prompt,
+                "stream": stream,
+                "options": {
+                    "temperature": 0.7,
+                    "top_p": 0.9
+                }
+            }
+            if images:
+                payload["images"] = images
+
             response = await client.post(
                 f"{self.base_url}/api/generate",
-                json={
-                    "model": model,
-                    "prompt": prompt,
-                    "system": system_prompt,
-                    "stream": stream,
-                    "options": {
-                        "temperature": 0.7,
-                        "top_p": 0.9
-                    }
-                }
+                json=payload
             )
 
             response.raise_for_status()

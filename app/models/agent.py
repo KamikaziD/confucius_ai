@@ -1,3 +1,4 @@
+from fastapi import UploadFile, File
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 from datetime import datetime
@@ -47,3 +48,8 @@ class AgentRequest(BaseModel):
     query: str
     context: Optional[str] = None
     collections: Optional[List[str]] = None
+    urls: Optional[List[str]] = None
+    files: Optional[List[UploadFile]] = None
+
+    class Config:
+        arbitrary_types_allowed = True

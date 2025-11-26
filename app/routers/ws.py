@@ -27,17 +27,27 @@ class ConnectionManager:
         """Initialize pubsub and start the global listener"""
         if not self.pubsub:
             self.pubsub = self.redis_service.redis.pubsub()
-            await self.pubsub.psubscribe("agent_results:*", "agent_activity:*")  # Subscribe to both
-            asyncio.create_task(self.run_pubsub_listener())
+            # Subscribe to both
+            await self.pubsub.psubscribe("agent_results:*", "agent_activity:*")
+            try:
+                asyncio.create_task(self.run_pubsub_listener())
+
+            except Exception as err:
+                print(err)
+            print(
+                "ConnectionManager startup: Pub/Sub initialized and listener started, subscribed to 'agent_results:*' and 'agent_activity:*'.")
             logger.info(
                 "ConnectionManager startup: Pub/Sub initialized and listener started, subscribed to 'agent_results:*' and 'agent_activity:*'.")
 
     async def connect(self, websocket: WebSocket, client_id: str):
         await websocket.accept()
         self.active_connections[client_id] = websocket
-        logger.info(f"WebSocket connected: {client_id}")
+        logger.info(f"WebSocket connected: {client_id}...")
+        await websocket.send_text("connected")
+        logger.info(f"Sent 'connected' message to {client_id}")
 
     def disconnect(self, client_id: str):
+
         if client_id in self.active_connections:
             del self.active_connections[client_id]
             logger.info(f"WebSocket disconnected: {client_id}")
@@ -45,6 +55,8 @@ class ConnectionManager:
     async def send_personal_message(self, message: str, client_id: str):
         if client_id in self.active_connections:
             try:
+                logger.info(
+                    f"Sending message to client {client_id}: {message}")
                 await self.active_connections[client_id].send_text(message)
             except RuntimeError as e:
                 logger.warning(
@@ -74,8 +86,6 @@ class ConnectionManager:
                     parts = channel.split(':')
                     if len(parts) == 2 and (parts[0] == 'agent_results' or parts[0] == 'agent_activity'):
                         client_id = parts[1]
-                        print(
-                            f"Dispatching Redis message from channel {channel} to client {client_id}")
                         logger.debug(
                             f"Dispatching Redis message from channel {channel} to client {client_id}")
                         await self.send_personal_message(data, client_id)
@@ -100,16 +110,17 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
     await manager.connect(websocket, client_id)
     try:
         while True:
-            if client_id not in manager.active_connections: # Explicitly check if client is still active
+            if client_id not in manager.active_connections:  # Explicitly check if client is still active
                 break
-            message = await websocket.receive() # Receive any message type
-            if message["type"] == "websocket.pong":
-                await manager.receive_pong(client_id)
+            message = await websocket.receive()  # Receive any message type
+            logger.info(f"Received WS MESSAGE from {client_id}: {message}")
+            # if message["type"] == "websocket.pong":
+            #     await manager.receive_pong(client_id)
             # else: handle other incoming messages if needed
     except WebSocketDisconnect:
         manager.disconnect(client_id)
         logger.info(f"Client {client_id} disconnected gracefully.")
-        return # Ensure the coroutine exits
+        return  # Ensure the coroutine exits
     except Exception as e:
         logger.error(
             f"WebSocket error for client {client_id}: {e}", exc_info=True)

@@ -8,7 +8,7 @@ import uuid
 from datetime import datetime
 import json
 import logging
-from app.tasks import execute_master_agent_task # Import the Celery task
+from app.tasks import execute_master_agent_task  # Import the Celery task
 
 logger = logging.getLogger(__name__)
 
@@ -25,10 +25,13 @@ DEFAULT_PROMPTS = {
 
 @router.post("/execute")
 async def execute_agents(
+    client_id: str = "detmar",
     query: str = Form(...),
     context: Optional[str] = Form(None),
-    collections_str: Optional[str] = Form("[]"), # Default to empty JSON array string
-    urls_str: Optional[str] = Form("[]"),       # Default to empty JSON array string
+    # Default to empty JSON array string
+    collections_str: Optional[str] = Form("[]"),
+    # Default to empty JSON array string
+    urls_str: Optional[str] = Form("[]"),
     files: List[UploadFile] = File([]),
 ):
     """Execute the multi-agent system asynchronously via Celery"""
@@ -36,20 +39,20 @@ async def execute_agents(
         collections = json.loads(collections_str)
         urls = json.loads(urls_str)
 
-        client_id = str(uuid.uuid4()) # Generate a unique client ID for WebSocket communication
+        # client_id = str(uuid.uuid4()) # Generate a unique client ID for WebSocket communication
 
         # Prepare files data for Celery task
         files_data = []
         for file in files:
             content = await file.read()
             files_data.append({"filename": file.filename, "content": content})
-        
+
         # Enqueue the task
         task = execute_master_agent_task.delay(
             query=query,
-            context_str=context, # Pass context as string
-            collections_json=collections_str, # Pass collections as JSON string
-            urls_json=urls_str, # Pass urls as JSON string
+            context_str=context,  # Pass context as string
+            collections_json=collections_str,  # Pass collections as JSON string
+            urls_json=urls_str,  # Pass urls as JSON string
             files_data=files_data,
             client_id=client_id
         )
